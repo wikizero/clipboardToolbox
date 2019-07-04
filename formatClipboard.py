@@ -17,21 +17,16 @@ import pyperclip
 from pylsy import pylsytable
 
 
-class FormatClipboard():
+class ExtendString(str):
+    """
+    扩展python内置str类，添加to方法等
+    """
+    def __init__(self, obj):
+        self.obj = obj
+        super(ExtendString, self).__init__()
 
-    def __init__(self):
-        self.max_len = 5
-        self.stack = deque(maxlen=self.max_len)
-
-    def get_text(self):
-        """
-        get text from clipboard
-        :return:
-        """
-        text = pyperclip.paste().strip()
-        # if not text:
-        #     raise Exception('Nothing in your clipboard')
-        return text
+    def to(self, fm, **kwargs):
+        return self.format_(fm, **kwargs)
 
     def format_(self, fm, in_sep: str = '\s+', out_sep: str = None, **param):
         """
@@ -50,9 +45,10 @@ class FormatClipboard():
         :return: 格式化后数据
         """
         if fm == 'df':
+            param.setdefault('header', None)
             return pd.read_clipboard(**param)
         elif fm == 'list':
-            lst = re.split(pattern=in_sep, string=self.get_text(), **param)
+            lst = re.split(pattern=in_sep, string=self.obj, **param)
             lst = [i.strip() for i in lst if i.strip()]
             return lst if out_sep is None else out_sep.join(lst)
 
@@ -82,10 +78,30 @@ class FormatClipboard():
         ret = self.format_('list', sep='\n')
         return dict([i.split(':', 1) for i in ret])
 
+
+class FormatClipboard():
+
+    def __init__(self):
+        self.max_len = 5
+        self.stack = deque(maxlen=self.max_len)
+
+    def get_text(self):
+        """
+        get text from clipboard
+        :return:
+        """
+        text = pyperclip.paste().strip()
+        # if not text:
+        #     raise Exception('Nothing in your clipboard')
+        return text
+
     def show_history(self):
-        first, *lst = [row[:30] for row in self.stack.copy()][::-1]
-        table = pylsytable(['$1', first])
-        table.append_data('$1', [f'${i + 2}' for i in range(len(lst))])
+        if len(self.stack) == 0:
+            print()
+
+        first, *lst = [re.sub('\s+', ' ', row[:27]+'...' if len(row) > 30 else row) for row in self.stack.copy()][::-1]
+        table = pylsytable(['$0', first])
+        table.append_data('$0', [f'${i + 1}' for i in range(len(lst))])
         table.append_data(first, lst)
         print(table, end='')
 
@@ -101,17 +117,31 @@ class FormatClipboard():
             time.sleep(0.5)
 
     def command(self):
-        lst = [f'${i+1}' for i in range(self.max_len)]
+        lst = [f'${i + 1}' for i in range(self.max_len)]
         while True:
-            std_in = input()
-            # print(std_in)
-            if std_in == 'show':
+            text = input('>>>').strip()
+
+            if text in ('', 'show', 'ls'):
                 self.show_history()
-            elif std_in in lst:
-                print(list(self.stack.copy())[::-1][lst.index(std_in)])
+                continue
+
+            # 拓展系统str类 增加to方法
+            text = re.sub('\$(\d+)', r'ExtendString($[\1])', text)
+
+            text = text.replace('$', 'list(self.stack.copy())[::-1]')
+
+            code = f'print({text})'
+
+            try:
+                exec(code)
+            except Exception as e:
+                pass
+            # elif text in lst:
+            #     print(list(self.stack.copy())[::-1][lst.index(text)])
 
     def main(self):
         t = threading.Thread(target=self.clipboard_watcher, name='clipboard_watcher')
+        t.setDaemon(True)
         t.start()
 
         self.command()
@@ -123,6 +153,7 @@ if __name__ == '__main__':
     # TODO markdown 转换 (自动识别)
     # TODO 分组  N 个一组
     # TODO 命令行工具  操作
+    # TODO 如何实现链式调用的？
     # pickup headq
     # text = FormatClipboard().format_('list', in_sep='\n', out_sep='\t')
     # text = FormatClipboard().format_('df')
