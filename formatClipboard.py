@@ -154,6 +154,8 @@ if __name__ == '__main__':
     # TODO 分组  N 个一组
     # TODO 命令行工具  操作
     # TODO 如何实现链式调用的？
+
+    # TODO 先整理需求场景 !!!
     # pickup headq
     # text = FormatClipboard().format_('list', in_sep='\n', out_sep='\t')
     # text = FormatClipboard().format_('df')
